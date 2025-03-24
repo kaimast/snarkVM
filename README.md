@@ -85,6 +85,15 @@ snarkvm
 
 ## 3. Usage Guide
 
+### 3.1 Unit and Integration Tests
+
+The SnarkVM repository has extensive test coverage.
+
+The following command will run *all* SnarkVM tests. Note, that you need to enable the `test` feature when running the tests. This feature disables some checks that are used in production.
+```
+cargo test --workspace --features=test
+```
+
 ## 4. Contributors
 
 Thank you for helping make snarkVM better!  
