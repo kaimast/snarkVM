@@ -4,4 +4,4 @@
 [![Authors](https://img.shields.io/badge/authors-Aleo-orange.svg)](https://aleo.org)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE.md)
 
-The `snarkvm-ledger-test-helpers` crate provides test helpers to produce data structure from the ledger.
+The `snarkvm-ledger-test-helpers` crate provides functions to populate a ledger with test transmissions and batches.

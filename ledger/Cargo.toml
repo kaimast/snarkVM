@@ -63,6 +63,7 @@ test-helpers = [
   "ledger-committee/test-helpers",
   "ledger-narwhal/test-helpers"
 ]
+test_targets = [ "console/test_targets" ]
 timer = [ "aleo-std/timer" ]
 
 [dependencies.console]

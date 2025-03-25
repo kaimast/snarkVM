@@ -85,7 +85,37 @@ snarkvm
 
 ## 3. Usage Guide
 
-### 3.1 Unit and Integration Tests
+### 3.1 Crate Features
+
+Many parts of SnarkVM's are guarded by feature gates. The following features are supported.
+
+#### Meta-Features
+* **default** - Enable all default features.
+* **full** - Enable all features, except target-specific features, *test-helpers*, and *test-targets*.
+
+#### Additional Functionality
+These features re-export crates from the workspace.
+
+* **algorithms**
+* **console**
+* **curves** 
+* **cli**
+* **fields**
+* **timer**
+* **ledger**
+* **metrics**
+* **parameters**
+* **synthesizer**
+* **utilities**
+* **test-helpers** - Enable helper functions for testing, e.g., to generate a ledger with mock transactions.
+* **test_targets** - Lower the coinbase targets. Used for development/test networks.
+
+### Target-Specific Features
+* **test** - Enable test-specific behavior. Only used during unit/integration tests.
+* **test_exports**
+* **wasm** - Enable WebAssembly support. Should only be used when compiling against a `wasm32-*` target.
+
+### 3.2 Unit and Integration Tests
 
 The SnarkVM repository has extensive test coverage.
 

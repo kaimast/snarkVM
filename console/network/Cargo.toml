@@ -9,7 +9,8 @@ license = "Apache-2.0"
 edition = "2021"
 
 [features]
-default = [ "snarkvm-algorithms/polycommit_full" ]
+default = ["polycommit_full"]
+polycommit_full = ["snarkvm-algorithms/polycommit_full"]
 wasm = [
   "snarkvm-algorithms/polycommit_wasm",
   "snarkvm-parameters/wasm"

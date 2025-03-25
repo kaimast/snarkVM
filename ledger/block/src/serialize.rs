@@ -74,9 +74,9 @@ mod tests {
     use super::*;
     use console::network::MainnetV0;
 
+    #[cfg(not(feature = "test_targets"))]
     type CurrentNetwork = MainnetV0;
 
-    #[test]
     fn test_serde_json() -> Result<()> {
         let rng = &mut TestRng::default();
 
@@ -109,6 +109,7 @@ mod tests {
         Ok(())
     }
 
+    #[cfg(not(feature = "test_targets"))]
     #[test]
     fn test_genesis_serde_json() -> Result<()> {
         // Load the genesis block.
@@ -125,6 +126,7 @@ mod tests {
         Ok(())
     }
 
+    #[cfg(not(feature = "test_targets"))]
     #[test]
     fn test_genesis_bincode() -> Result<()> {
         // Load the genesis block.
