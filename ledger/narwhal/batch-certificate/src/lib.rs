@@ -179,7 +179,7 @@ pub mod test_helpers {
         rng: &mut TestRng,
     ) -> BatchCertificate<CurrentNetwork> {
         let committee: Vec<_> = (0..5).map(|_| PrivateKey::new(rng).unwrap()).collect();
-        sample_batch_certificate_for_round_with_committe(
+        sample_batch_certificate_for_round_with_committee(
             round,
             previous_certificate_ids,
             &committee[0],
@@ -189,7 +189,7 @@ pub mod test_helpers {
     }
 
     /// Same as `sample_batch_certificate_for_round_with_previous_certificate_ids`, but also allows you to set the private keys that sign the certificate.
-    pub fn sample_batch_certificate_for_round_with_committe(
+    pub fn sample_batch_certificate_for_round_with_committee(
         round: u64,
         previous_certificate_ids: IndexSet<Field<CurrentNetwork>>,
         author: &PrivateKey<CurrentNetwork>,
