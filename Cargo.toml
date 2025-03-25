@@ -150,7 +150,6 @@ test = [
   "parameters",
   "synthesizer",
   "utilities",
-  "test_targets",
   "snarkvm-ledger/test",
   "snarkvm-console/test",
   "snarkvm-algorithms/test",
@@ -170,6 +169,7 @@ synthesizer = [ "snarkvm-synthesizer" ]
 utilities = [ "snarkvm-utilities" ]
 wasm = [ "snarkvm-wasm" ]
 test_exports = [ "snarkvm-algorithms/test_exports" ]
+# Used for test networks, not unit/integration tests
 test_targets = [ "snarkvm-console/test_targets" ]
 
 [dependencies.snarkvm-algorithms]
