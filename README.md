@@ -89,10 +89,12 @@ snarkvm
 
 The SnarkVM repository has extensive test coverage.
 
-The following command will run *all* SnarkVM tests. Note, that you need to enable the `test` feature when running the tests. This feature disables some checks that are used in production.
+The following command will run *all* SnarkVM tests, except for WASM-specific ones.
 ```
-cargo test --workspace --features=test
+cargo test --workspace --features=test --exclude=snarkvm-wasm
 ```
+
+Note, that you need to enable the `test` feature when running the tests. This feature disables some checks that are used in production.
 
 ## 4. Contributors
 

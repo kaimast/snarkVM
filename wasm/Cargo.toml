@@ -49,6 +49,9 @@ ledger = [
 synthesizer = [ "snarkvm-synthesizer" ]
 utilities = [ "snarkvm-utilities" ]
 
+# Features needed to run the tests
+test = ["utilities", "console"]
+
 [dependencies.snarkvm-circuit-network]
 path = "../circuit/network"
 version = "=1.3.0"

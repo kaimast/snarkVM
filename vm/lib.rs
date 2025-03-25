@@ -23,7 +23,9 @@ extern crate thiserror;
 
 #[cfg(feature = "cli")]
 pub mod cli;
+#[cfg(feature = "cli")]
 pub mod file;
+#[cfg(feature = "cli")]
 pub mod package;
 
 #[cfg(feature = "algorithms")]

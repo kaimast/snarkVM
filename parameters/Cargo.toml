@@ -26,6 +26,7 @@ edition = "2021"
 [features]
 large_params = [ ]
 default = [ "colored", "remote" ]
+test = [ ]
 locktick = [ "dep:locktick" ]
 no_std_out = [ ]
 remote = [ "curl" ]

@@ -398,6 +398,7 @@ function main:
     }
 
     /// Samples a candidate input to execute the sample package.
+    #[cfg(feature = "cli")]
     pub(crate) fn sample_package_run(
         program_id: &ProgramID<CurrentNetwork>,
     ) -> (PrivateKey<CurrentNetwork>, Identifier<CurrentNetwork>, Vec<Value<CurrentNetwork>>) {

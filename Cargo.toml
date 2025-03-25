@@ -143,7 +143,19 @@ locktick = [
 ]
 noconfig = [ ]
 rocks = [ "snarkvm-ledger/rocks", "snarkvm-synthesizer/rocks" ]
-test = [ "snarkvm-ledger/test" ]
+test = [
+  "circuit",
+  "console",
+  "ledger",
+  "parameters",
+  "synthesizer",
+  "utilities",
+  "test_targets",
+  "snarkvm-ledger/test",
+  "snarkvm-console/test",
+  "snarkvm-algorithms/test",
+  "snarkvm-parameters/test",
+]
 test-helpers = [ "snarkvm-ledger/test-helpers" ]
 timer = [ "snarkvm-ledger/timer" ]
 algorithms = [ "snarkvm-algorithms" ]
