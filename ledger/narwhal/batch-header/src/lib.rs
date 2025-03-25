@@ -272,10 +272,11 @@ pub mod test_helpers {
     ) -> BatchHeader<CurrentNetwork> {
         // Sample a private key.
         let private_key = PrivateKey::new(rng).unwrap();
+        // Generate a new certificated with the key as its author.
         sample_batch_header_for_round_and_key_with_previous_certificate_ids(
             round,
-            previous_certificate_ids,
             &private_key,
+            previous_certificate_ids,
             rng,
         )
     }
@@ -283,8 +284,8 @@ pub mod test_helpers {
     /// Returns a sample batch header with a given round, author key, and set of previous certificate IDs; the rest is sampled at random.
     pub fn sample_batch_header_for_round_and_key_with_previous_certificate_ids(
         round: u64,
-        previous_certificate_ids: IndexSet<Field<CurrentNetwork>>,
         private_key: &PrivateKey<CurrentNetwork>,
+        previous_certificate_ids: IndexSet<Field<CurrentNetwork>>,
         rng: &mut TestRng,
     ) -> BatchHeader<CurrentNetwork> {
         // Sample the committee ID.
