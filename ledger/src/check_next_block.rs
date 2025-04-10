@@ -17,9 +17,42 @@ use super::*;
 
 use crate::narwhal::BatchHeader;
 
+/// Wrapper for a block that has a valid subDAG, but where the block header,
+/// solutions, and transmissions have not been verified yet.
+///
+/// This type is created by `Ledger::check_block_subdag` and consuemd by `Ledger::check_block_content`.
+#[derive(Clone, PartialEq, Eq)]
+pub struct PendingBlock<N: Network>(Block<N>);
+
+impl<N: Network> Deref for PendingBlock<N> {
+    type Target = Block<N>;
+
+    fn deref(&self) -> &Block<N> {
+        &self.0
+    }
+}
+
 impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
-    /// Checks the given block is valid next block.
-    pub fn check_next_block<R: CryptoRng + Rng>(&self, block: &Block<N>, rng: &mut R) -> Result<()> {
+    /// Checks that the subDAG in a given block is valid, but does not fully verify it.
+    ///
+    /// # Arguments
+    /// * `block` - The block to check.
+    /// * `pending_block` - A sequence of blocks between the block to check and the current height of the ledger.
+    ///
+    /// # Notes
+    /// * This does *not* check that the header of the block is correct or execute verify any of the transmissions contained within it.
+    ///
+    /// * In most cases, you want to use [`Self::check_next_block`] instead to perform a full verification.
+    ///
+    /// * This will reject any blocks with a height <= the current height and any blocks with a height >= the current height + GC.
+    ///   For the former, a valid block already exists and,
+    ///   for the latter, the comittte is still unkown.
+    pub fn check_block_subdag(&self, block: Block<N>, pending_blocks: &[PendingBlock<N>]) -> Result<PendingBlock<N>> {
+        self.check_block_subdag_inner(&block, pending_blocks)?;
+        Ok(PendingBlock(block))
+    }
+
+    fn check_block_subdag_inner(&self, block: &Block<N>, pending_blocks: &[PendingBlock<N>]) -> Result<()> {
         let height = block.height();
 
         // Ensure the block hash does not already exist.
@@ -32,12 +65,74 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
             bail!("Block height '{height}' already exists in the ledger")
         }
 
+        // First check that the pending set and block height are correct.
+        {
+            let mut expected_height = self.current_block.read().height() + 1;
+            for pending in pending_blocks {
+                if pending.height() != expected_height {
+                    bail!(
+                        "Pending block has invalid height. Expected {expected_height}, but got {}.",
+                        pending.height()
+                    );
+                }
+                expected_height += 1;
+            }
+
+            if height != expected_height {
+                bail!("Block has invalid height. Expected {expected_height}, but got {height}.");
+            }
+        }
+
+        // Ensure the certificates in the block subdag have met quorum requirements.
+        self.check_block_subdag_quorum(block)?;
+
+        // Determine if the block subdag is correctly constructed and is not a combination of multiple subdags.
+        self.check_block_subdag_atomicity(block)?;
+
+        // Ensure that all leafs of the subdag point to valid batches in other subdags/blocks.
+        self.check_block_subdag_leaves(block, pending_blocks)?;
+
+        Ok(())
+    }
+
+    /// Checks the given block is a valid next block with regard to the current state/height of the Ledger.
+    pub fn check_next_block<R: CryptoRng + Rng>(&self, block: &Block<N>, rng: &mut R) -> Result<()> {
+        self.check_block_subdag_inner(block, &[])?;
+        self.check_block_content_inner(block, rng)?;
+
+        Ok(())
+    }
+
+    /// Checks that the header of a block is correct, but does not verify the DAG or certificate signatures.
+    ///
+    /// This takes a [`PendingBlock`] as input, which is the output of a successful call to
+    /// [`Self::check_block_.subdag`].
+    pub fn check_block_content<R: CryptoRng + Rng>(&self, block: PendingBlock<N>, rng: &mut R) -> Result<Block<N>> {
+        self.check_block_content_inner(&block.0, rng)?;
+        Ok(block.0)
+    }
+
+    fn check_block_content_inner<R: CryptoRng + Rng>(&self, block: &Block<N>, rng: &mut R) -> Result<()> {
         // Ensure the solutions do not already exist.
         for solution_id in block.solutions().solution_ids() {
             if self.contains_solution_id(solution_id)? {
                 bail!("Solution ID {solution_id} already exists in the ledger");
             }
         }
+
+        // Retrieve the committee lookback.
+        let committee_lookback = self
+            .get_committee_lookback_for_round(block.round())?
+            .ok_or(anyhow!("Failed to fetch committee lookback for round {}", block.round()))?;
+
+        // Retrieve the previous committee lookback.
+        let previous_committee_lookback = {
+            // Calculate the penultimate round, which is the round before the anchor round.
+            let penultimate_round = block.round().saturating_sub(1);
+            // Output the committee lookback for the penultimate round.
+            self.get_committee_lookback_for_round(penultimate_round)?
+                .ok_or(anyhow!("Failed to fetch committee lookback for round {penultimate_round}"))?
+        };
 
         // TODO (howardwu): Remove this after moving the total supply into credits.aleo.
         {
@@ -82,20 +177,6 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
             rng,
         )?;
 
-        // Retrieve the committee lookback.
-        let committee_lookback = self
-            .get_committee_lookback_for_round(block.round())?
-            .ok_or(anyhow!("Failed to fetch committee lookback for round {}", block.round()))?;
-
-        // Retrieve the previous committee lookback.
-        let previous_committee_lookback = {
-            // Calculate the penultimate round, which is the round before the anchor round.
-            let penultimate_round = block.round().saturating_sub(1);
-            // Output the committee lookback for the penultimate round.
-            self.get_committee_lookback_for_round(penultimate_round)?
-                .ok_or(anyhow!("Failed to fetch committee lookback for round {penultimate_round}"))?
-        };
-
         // Ensure the block is correct.
         let (expected_existing_solution_ids, expected_existing_transaction_ids) = block.verify(
             &self.latest_block(),
@@ -107,15 +188,6 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
             OffsetDateTime::now_utc().unix_timestamp(),
             ratified_finalize_operations,
         )?;
-
-        // Ensure the certificates in the block subdag have met quorum requirements.
-        self.check_block_subdag_quorum(block)?;
-
-        // Determine if the block subdag is correctly constructed and is not a combination of multiple subdags.
-        self.check_block_subdag_atomicity(block)?;
-
-        // Ensure that all leafs of the subdag point to valid batches in other subdags/blocks.
-        self.check_block_subdag_leaves(block)?;
 
         // Ensure that each existing solution ID from the block exists in the ledger.
         for existing_solution_id in expected_existing_solution_ids {
@@ -138,11 +210,20 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
     ///
     /// This does not verify that the batches are signed correctly or that the edges are valid
     /// (only point to the previous round), as those checks already happend when the node received the batch.
-    fn check_block_subdag_leaves(&self, block: &Block<N>) -> Result<()> {
+    fn check_block_subdag_leaves(&self, block: &Block<N>, previous_blocks: &[PendingBlock<N>]) -> Result<()> {
         // Check if the block has a subdag.
         let Authority::Quorum(subdag) = block.authority() else {
             return Ok(());
         };
+
+        let previous_certs: HashSet<_> = previous_blocks
+            .iter()
+            .filter_map(|block| match block.authority() {
+                Authority::Quorum(subdag) => Some(subdag.certificate_ids()),
+                Authority::Beacon(_) => None,
+            })
+            .flatten()
+            .collect();
 
         // Store the IDs of all certificates in this subDAG.
         // This allows determining which edges point to other subDAGs/blocks.
@@ -166,7 +247,7 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
             }
 
             // Ensure that the certificate is associated with a previous block.
-            if self.vm.block_store().get_block_for_certificate(prev_id)?.is_none() {
+            if !previous_certs.contains(prev_id) && self.vm.block_store().get_block_for_certificate(prev_id)?.is_none() {
                 bail!(
                     "Batch(es) in the block point(s) to a certificate {prev_id} in round {prev_round} that is not associated with a previous block"
                 )
@@ -177,6 +258,8 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
     }
 
     /// Check that the certificates in the block subdag have met quorum requirements.
+    ///
+    /// Called by [`Self::check_block_subdag`]
     fn check_block_subdag_quorum(&self, block: &Block<N>) -> Result<()> {
         // Check if the block has a subdag.
         let subdag = match block.authority() {
@@ -218,6 +301,8 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
     }
 
     /// Checks that the block subdag can not be split into multiple valid subdags.
+    ///
+    /// Called by [`Self::check_block_subdag`]
     fn check_block_subdag_atomicity(&self, block: &Block<N>) -> Result<()> {
         // Returns `true` if there is a path from the previous certificate to the current certificate.
         fn is_linked<N: Network>(

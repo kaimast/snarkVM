@@ -35,8 +35,10 @@ pub use ledger_test_helpers;
 mod helpers;
 pub use helpers::*;
 
-mod advance;
 mod check_next_block;
+pub use check_next_block::PendingBlock;
+
+mod advance;
 mod check_transaction_basic;
 mod contains;
 mod find;
