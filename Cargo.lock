@@ -3170,6 +3170,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "snarkvm-dylib"
+version = "0.1.0"
+dependencies = [
+ "snarkvm",
+]
+
+[[package]]
 name = "snarkvm-fields"
 version = "3.8.0"
 dependencies = [

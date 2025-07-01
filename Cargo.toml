@@ -79,10 +79,12 @@ members = [
   "ledger/test-helpers",
   "metrics",
   "parameters",
+  "snarkvm-dylib",
   "synthesizer",
   "synthesizer/process",
   "synthesizer/program",
   "synthesizer/snark",
+  "snarkvm-dylib",
   "utilities",
   "utilities/derives",
   "wasm"
