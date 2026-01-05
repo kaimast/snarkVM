@@ -193,7 +193,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("main_program.aleo", "set_mapping"),
-            vec![Value::from_str("42u32").unwrap(), Value::from_str("100u32").unwrap()].iter(),
+            [Value::from_str("42u32").unwrap(), Value::from_str("100u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -219,7 +219,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("main_program.aleo", "remove_mapping"),
-            vec![Value::from_str("42u32").unwrap()].iter(),
+            [Value::from_str("42u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -236,7 +236,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("basic_program0.aleo", "set_mapping"),
-            vec![Value::from_str("7u32").unwrap(), Value::from_str("200u32").unwrap()].iter(),
+            [Value::from_str("7u32").unwrap(), Value::from_str("200u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -250,7 +250,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("basic_program1.aleo", "set_mapping"),
-            vec![Value::from_str("15u32").unwrap(), Value::from_str("300u32").unwrap()].iter(),
+            [Value::from_str("15u32").unwrap(), Value::from_str("300u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -269,7 +269,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("basic_program0.aleo", "remove_mapping"),
-            vec![Value::from_str("7u32").unwrap()].iter(),
+            [Value::from_str("7u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -283,7 +283,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("basic_program1.aleo", "remove_mapping"),
-            vec![Value::from_str("15u32").unwrap()].iter(),
+            [Value::from_str("15u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -673,7 +673,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("main_program.aleo", "set_mapping"),
-            vec![Value::from_str("42u32").unwrap(), Value::from_str("100u32").unwrap()].iter(),
+            [Value::from_str("42u32").unwrap(), Value::from_str("100u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -700,7 +700,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("main_program.aleo", "remove_mapping"),
-            vec![Value::from_str("42u32").unwrap()].iter(),
+            [Value::from_str("42u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -717,7 +717,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("basic_program0.aleo", "set_mapping"),
-            vec![Value::from_str("7u32").unwrap(), Value::from_str("200u32").unwrap()].iter(),
+            [Value::from_str("7u32").unwrap(), Value::from_str("200u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -731,7 +731,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("basic_program1.aleo", "set_mapping"),
-            vec![Value::from_str("15u32").unwrap(), Value::from_str("300u32").unwrap()].iter(),
+            [Value::from_str("15u32").unwrap(), Value::from_str("300u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -753,7 +753,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("basic_program0.aleo", "remove_mapping"),
-            vec![Value::from_str("7u32").unwrap()].iter(),
+            [Value::from_str("7u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -766,7 +766,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("basic_program1.aleo", "remove_mapping"),
-            vec![Value::from_str("15u32").unwrap()].iter(),
+            [Value::from_str("15u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -784,12 +784,8 @@ constructor:
         .execute(
             &caller_private_key,
             ("main_program.aleo", "set_struct_mapping"),
-            vec![
-                Value::from_str("10u32").unwrap(),
-                Value::from_str("111u32").unwrap(),
-                Value::from_str("222u64").unwrap(),
-            ]
-            .iter(),
+            [Value::from_str("10u32").unwrap(), Value::from_str("111u32").unwrap(), Value::from_str("222u64").unwrap()]
+                .iter(),
             None,
             0,
             None,
@@ -806,12 +802,8 @@ constructor:
         .execute(
             &caller_private_key,
             ("struct_program0.aleo", "set_mapping"),
-            vec![
-                Value::from_str("20u32").unwrap(),
-                Value::from_str("333u32").unwrap(),
-                Value::from_str("444u64").unwrap(),
-            ]
-            .iter(),
+            [Value::from_str("20u32").unwrap(), Value::from_str("333u32").unwrap(), Value::from_str("444u64").unwrap()]
+                .iter(),
             None,
             0,
             None,
@@ -832,7 +824,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("main_program.aleo", "remove_struct_mapping"),
-            vec![Value::from_str("10u32").unwrap()].iter(),
+            [Value::from_str("10u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -845,7 +837,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("struct_program0.aleo", "remove_mapping"),
-            vec![Value::from_str("20u32").unwrap()].iter(),
+            [Value::from_str("20u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -1134,7 +1126,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("main_program.aleo", "set_mapping"),
-            vec![Value::from_str("42u32").unwrap(), Value::from_str("100u32").unwrap()].iter(),
+            [Value::from_str("42u32").unwrap(), Value::from_str("100u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -1161,7 +1153,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("main_program.aleo", "remove_mapping"),
-            vec![Value::from_str("42u32").unwrap()].iter(),
+            [Value::from_str("42u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -1182,7 +1174,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("basic_program0.aleo", "set_mapping"),
-            vec![Value::from_str("7u32").unwrap(), Value::from_str("200u32").unwrap()].iter(),
+            [Value::from_str("7u32").unwrap(), Value::from_str("200u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -1196,7 +1188,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("basic_program1.aleo", "set_mapping"),
-            vec![Value::from_str("15u32").unwrap(), Value::from_str("300u32").unwrap()].iter(),
+            [Value::from_str("15u32").unwrap(), Value::from_str("300u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -1218,7 +1210,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("basic_program0.aleo", "remove_mapping"),
-            vec![Value::from_str("7u32").unwrap()].iter(),
+            [Value::from_str("7u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -1231,7 +1223,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("basic_program1.aleo", "remove_mapping"),
-            vec![Value::from_str("15u32").unwrap()].iter(),
+            [Value::from_str("15u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -1252,12 +1244,8 @@ constructor:
         .execute(
             &caller_private_key,
             ("main_program.aleo", "set_struct_mapping"),
-            vec![
-                Value::from_str("10u32").unwrap(),
-                Value::from_str("111u32").unwrap(),
-                Value::from_str("222u64").unwrap(),
-            ]
-            .iter(),
+            [Value::from_str("10u32").unwrap(), Value::from_str("111u32").unwrap(), Value::from_str("222u64").unwrap()]
+                .iter(),
             None,
             0,
             None,
@@ -1286,12 +1274,8 @@ constructor:
         .execute(
             &caller_private_key,
             ("struct_program0.aleo", "set_mapping"),
-            vec![
-                Value::from_str("20u32").unwrap(),
-                Value::from_str("333u32").unwrap(),
-                Value::from_str("444u64").unwrap(),
-            ]
-            .iter(),
+            [Value::from_str("20u32").unwrap(), Value::from_str("333u32").unwrap(), Value::from_str("444u64").unwrap()]
+                .iter(),
             None,
             0,
             None,
@@ -1312,7 +1296,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("main_program.aleo", "remove_struct_mapping"),
-            vec![Value::from_str("10u32").unwrap()].iter(),
+            [Value::from_str("10u32").unwrap()].iter(),
             None,
             0,
             None,
@@ -1325,7 +1309,7 @@ constructor:
         .execute(
             &caller_private_key,
             ("struct_program0.aleo", "remove_mapping"),
-            vec![Value::from_str("20u32").unwrap()].iter(),
+            [Value::from_str("20u32").unwrap()].iter(),
             None,
             0,
             None,
