@@ -32,7 +32,7 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
         rng: &mut R,
     ) -> Result<Block<N>> {
         // Retrieve the latest block as the previous block (for the next block).
-        // Hold this lock while perparing the template, so that the latest block does not change mid-speculation.
+        // Hold this lock while preparing the template, so that the latest block does not change mid-speculation.
         let previous_block = self.current_block.read();
 
         // Decouple the transmissions into ratifications, solutions, and transactions.
