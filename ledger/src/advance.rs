@@ -76,7 +76,7 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
         ensure!(candidate_ratifications.is_empty(), "Ratifications are currently unsupported from the memory pool");
 
         // Retrieve the latest block as the previous block (for the next block).
-        // Hold this lock while perparing the template, so that the latest block does not change mid-speculation.
+        // Hold this lock while preparing the template, so that the latest block does not change mid-speculation.
         let previous_block = self.current_block.read();
 
         // Construct the block template.
@@ -108,14 +108,19 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
     ///
     /// This function expects a valid block, that either was created by a trusted source, or successfully passed
     /// the blocks checks (e.g. [`Ledger::check_next_block`]).
-    /// Note, that it is still possible that this function returns an error for a valid block, if there are concurrent tasks
-    /// updating the ledger.
+    ///
+    /// # Concurrency
+    /// It is guaranteed that at most one call this function is executing at any time and that no reads to the Ledger
+    /// (e.g, by [`Self::prepare_next_beacon_block`] or [`Self::check_next_block`]) execute while the ledger is advancing.
+    /// However, it is still possible that a *previously* valid block is rejected by a call to this function,
+    /// if the ledger advanced between calling `prepare_next_*_block` and passing it to this function.
     ///
     /// # Panics
     /// This function panics if called from an async context.
     pub fn advance_to_next_block(&self, block: &Block<N>) -> Result<()> {
-        // Acquire the write lock on the current block.
+        // Acquire a write lock to current_block to prevent current updates or reads to the block or state root.
         let mut current_block = self.current_block.write();
+
         // Check again for any possible race conditions.
         if current_block.is_genesis()? {
             // current block is initialized as the genesis block, but the ledger will
@@ -236,6 +241,12 @@ where
 
 impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
     /// Constructs a block template for the next block in the ledger.
+    ///
+    /// # Concurrency
+    /// This function assumes that `previous_block` is identical to [`Self::current_block`]. To ensure this,
+    /// you should hold a read (or write) lock to the latter while calling this function.
+    /// Otherwise, it would be possible that the state root is inconsistent with the previous block, and for the
+    /// returned block template to be invalid.
     ///
     /// # Panics
     /// This function panics if called from an async context.
