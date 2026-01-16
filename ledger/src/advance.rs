@@ -266,10 +266,14 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
         {
             true => (None, vec![], Field::<N>::zero(), 0u128),
             false => {
-                // Retrieve the latest epoch hash.
-                let latest_epoch_hash = self.latest_epoch_hash()?;
+                // Retrieve the latest epoch hash directly from the previous block.
+                // (so we avoid read-locking current_block again)
+                let latest_epoch_hash = match self.current_epoch_hash.read().as_ref() {
+                    Some(epoch_hash) => *epoch_hash,
+                    None => self.get_epoch_hash(previous_block.height())?,
+                };
                 // Retrieve the latest proof target.
-                let latest_proof_target = self.latest_proof_target();
+                let latest_proof_target = previous_block.proof_target();
                 // Separate the candidate solutions into valid and aborted solutions.
                 let mut accepted_solutions: IndexMap<Address<N>, u64> = IndexMap::new();
                 let (valid_candidate_solutions, aborted_candidate_solutions) =
