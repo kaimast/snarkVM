@@ -1338,6 +1338,36 @@ function create_duplicate_record:
     assert!(!partially_verified_transaction.contains(&deployment_3_cache_key));
 }
 
+// Tests that `try_get_*' returns `None` if the tranmissions does not exist.
+#[test]
+fn test_get_transaction() {
+    let rng = &mut TestRng::default();
+    let ledger = crate::test_helpers::sample_test_env(rng).ledger;
+
+    // Generate a random transaction ID.
+    let transaction = crate::test_helpers::sample_deployment_transaction(1, 0, true, rng);
+    let transaction_id = transaction.id();
+
+    assert_eq!(ledger.try_get_transaction(&transaction_id).unwrap(), None);
+    assert_eq!(ledger.try_get_confirmed_transaction(&transaction_id).unwrap(), None);
+    assert_eq!(ledger.try_get_unconfirmed_transaction(&transaction_id).unwrap(), None);
+
+    assert!(ledger.get_transaction(transaction_id).is_err());
+    assert!(ledger.get_confirmed_transaction(transaction_id).is_err());
+    assert!(ledger.get_unconfirmed_transaction(&transaction_id).is_err());
+
+    // Insert the transaction as unconfirmed into the ledger.
+    ledger.vm().transaction_store().insert(&transaction).unwrap();
+
+    assert!(ledger.try_get_transaction(&transaction_id).unwrap().is_some());
+    assert_eq!(ledger.try_get_confirmed_transaction(&transaction_id).unwrap(), None);
+    assert!(ledger.try_get_unconfirmed_transaction(&transaction_id).unwrap().is_some());
+
+    assert!(ledger.get_transaction(transaction_id).is_ok());
+    assert!(ledger.get_confirmed_transaction(transaction_id).is_err());
+    assert!(ledger.get_unconfirmed_transaction(&transaction_id).is_ok());
+}
+
 #[test]
 fn test_execute_duplicate_transition_ids() {
     let rng = &mut TestRng::default();

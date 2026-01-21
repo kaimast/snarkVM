@@ -17,6 +17,7 @@ use super::*;
 
 use anyhow::Context;
 
+#[deny(missing_docs)]
 impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
     /// Returns a candidate for the next block in the ledger, using a committed subdag and its transmissions.
     /// This candidate can then be passed to [`Ledger::advance_to_next_block`] to be added to the ledger.

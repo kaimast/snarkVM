@@ -15,6 +15,7 @@
 
 use super::*;
 
+#[deny(missing_docs)]
 impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
     /// Returns `true` if the given state root exists.
     pub fn contains_state_root(&self, state_root: &N::StateRoot) -> Result<bool> {

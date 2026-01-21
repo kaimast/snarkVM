@@ -17,6 +17,7 @@ use super::*;
 
 use snarkvm_utilities::flatten_error;
 
+#[deny(missing_docs)]
 impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
     /// Returns the block height that contains the given `state root`.
     pub fn find_block_height_from_state_root(&self, state_root: N::StateRoot) -> Result<Option<u32>> {
