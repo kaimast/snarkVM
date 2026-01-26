@@ -49,6 +49,8 @@ pub enum CheckBlockError<N: Network> {
     BlockAlreadyExists { hash: N::BlockHash },
     #[error("Block has invalid height. Expected {expected}, but got {actual}")]
     InvalidHeight { expected: u32, actual: u32 },
+    #[error("Block has invalid round. Was {new}, but must be greater than previous round ({previous})")]
+    InvalidRound { new: u64, previous: u64 },
     #[error("Block has invalid hash")]
     InvalidHash,
     /// An error related to the given prefix of pending blocks.
@@ -206,6 +208,10 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
         // Ensure, again, that the ledger has not advanced yet. This prevents cryptic errors form appearing during the block check.
         if block.height() != latest_block.height() + 1 {
             return Err(CheckBlockError::InvalidHeight { expected: latest_block.height() + 1, actual: block.height() });
+        }
+        // Also ensure the round is valid, otherwise speculation on transactions will fail with a cryptic error.
+        if block.round() <= latest_block.round() {
+            return Err(CheckBlockError::InvalidRound { new: block.round(), previous: latest_block.round() });
         }
 
         // Ensure the solutions do not already exist.

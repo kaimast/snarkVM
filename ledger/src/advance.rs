@@ -30,7 +30,7 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
         subdag: Subdag<N>,
         transmissions: IndexMap<TransmissionID<N>, Transmission<N>>,
         rng: &mut R,
-    ) -> Result<Block<N>> {
+    ) -> Result<Block<N>, CheckBlockError<N>> {
         // Retrieve the latest block as the previous block (for the next block).
         // Hold this lock while preparing the template, so that the latest block does not change mid-speculation.
         let previous_block = self.current_block.read();
@@ -38,7 +38,9 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
         // Decouple the transmissions into ratifications, solutions, and transactions.
         let (ratifications, solutions, transactions) = decouple_transmissions(transmissions.into_iter())?;
         // Currently, we do not support ratifications from the memory pool.
-        ensure!(ratifications.is_empty(), "Ratifications are currently unsupported from the memory pool");
+        if !ratifications.is_empty() {
+            return Err(anyhow!("Ratifications are currently unsupported from the memory pool").into());
+        }
         // Construct the block template.
         let (header, ratifications, solutions, aborted_solution_ids, transactions, aborted_transaction_ids) =
             self.construct_block_template(&previous_block, Some(&subdag), ratifications, solutions, transactions, rng)?;
@@ -54,6 +56,7 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
             transactions,
             aborted_transaction_ids,
         )
+        .map_err(|e| CheckBlockError::Other(e))
     }
 
     /// Returns a candidate for the next block in the ledger.
@@ -71,9 +74,11 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
         candidate_solutions: Vec<Solution<N>>,
         candidate_transactions: Vec<Transaction<N>>,
         rng: &mut R,
-    ) -> Result<Block<N>> {
+    ) -> Result<Block<N>, CheckBlockError<N>> {
         // Currently, we do not support ratifications from the memory pool.
-        ensure!(candidate_ratifications.is_empty(), "Ratifications are currently unsupported from the memory pool");
+        if !candidate_ratifications.is_empty() {
+            return Err(anyhow!("Ratifications are currently unsupported from the memory pool").into());
+        }
 
         // Retrieve the latest block as the previous block (for the next block).
         // Hold this lock while preparing the template, so that the latest block does not change mid-speculation.
@@ -102,6 +107,7 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
             aborted_transaction_ids,
             rng,
         )
+        .map_err(|e| CheckBlockError::Other(e))
     }
 
     /// Adds the given block as the next block in the ledger.
@@ -259,8 +265,10 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
         candidate_solutions: Vec<Solution<N>>,
         candidate_transactions: Vec<Transaction<N>>,
         rng: &mut R,
-    ) -> Result<(Header<N>, Ratifications<N>, Solutions<N>, Vec<SolutionID<N>>, Transactions<N>, Vec<N::TransactionID>)>
-    {
+    ) -> Result<
+        (Header<N>, Ratifications<N>, Solutions<N>, Vec<SolutionID<N>>, Transactions<N>, Vec<N::TransactionID>),
+        CheckBlockError<N>,
+    > {
         // Construct the solutions.
         let (solutions, aborted_solutions, solutions_root, combined_proof_target) = match candidate_solutions.is_empty()
         {
@@ -333,7 +341,16 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
 
         // Compute the next round number.
         let next_round = match subdag {
-            Some(subdag) => subdag.anchor_round(),
+            Some(subdag) => {
+                if previous_block.round() >= subdag.anchor_round() {
+                    return Err(CheckBlockError::InvalidRound {
+                        new: subdag.anchor_round(),
+                        previous: previous_block.round(),
+                    });
+                }
+
+                subdag.anchor_round()
+            }
             None => previous_block.round().saturating_add(1),
         };
         // Compute the next height.
@@ -383,7 +400,8 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
             N::ANCHOR_HEIGHT,
             N::BLOCK_TIME,
             combined_proof_target,
-            u64::try_from(latest_cumulative_proof_target)?,
+            u64::try_from(latest_cumulative_proof_target)
+                .map_err(|e| anyhow!("Failed to convert cumulative proof target to u64 - {e}"))?,
             latest_coinbase_target,
         )?;
 
