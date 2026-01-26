@@ -1765,9 +1765,9 @@ dependencies = [
 
 [[package]]
 name = "locktick"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a4a7c4b9459e549968abf200cb77c6faf0bdedc87df5065f73ca95031795050"
+checksum = "b203d5f7300c3e5775012b0fc5d3177552b0e55bb5ab3b532555eb33e31799b6"
 dependencies = [
  "backtrace",
  "parking_lot",
