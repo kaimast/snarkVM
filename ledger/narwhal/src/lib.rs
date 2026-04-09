@@ -26,6 +26,11 @@ pub use snarkvm_ledger_narwhal_batch_header as batch_header;
 #[cfg(feature = "batch-header")]
 pub use snarkvm_ledger_narwhal_batch_header::BatchHeader;
 
+#[cfg(feature = "batch-v2")]
+pub use snarkvm_ledger_narwhal_batch_v2 as batch_v2;
+#[cfg(feature = "batch-v2")]
+pub use snarkvm_ledger_narwhal_batch_v2::BatchV2;
+
 #[cfg(feature = "data")]
 pub use snarkvm_ledger_narwhal_data as data;
 #[cfg(feature = "data")]
@@ -35,6 +40,11 @@ pub use snarkvm_ledger_narwhal_data::Data;
 pub use snarkvm_ledger_narwhal_subdag as subdag;
 #[cfg(feature = "subdag")]
 pub use snarkvm_ledger_narwhal_subdag::Subdag;
+
+#[cfg(feature = "subdag-v2")]
+pub use snarkvm_ledger_narwhal_subdag_v2 as subdag_v2;
+#[cfg(feature = "subdag-v2")]
+pub use snarkvm_ledger_narwhal_subdag_v2::SubdagV2;
 
 #[cfg(feature = "transmission")]
 pub use snarkvm_ledger_narwhal_transmission as transmission;

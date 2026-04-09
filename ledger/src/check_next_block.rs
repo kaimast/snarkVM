@@ -337,7 +337,7 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
             .iter()
             .filter_map(|block| match block.authority() {
                 Authority::Quorum(subdag) => Some(subdag.certificate_ids()),
-                Authority::Beacon(_) => None,
+                Authority::Beacon(_) | Authority::QuorumV2(_) => None,
             })
             .flatten()
             .collect();

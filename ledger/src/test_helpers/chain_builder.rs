@@ -19,7 +19,7 @@ use crate::{
     Transaction,
     Transmission,
     TransmissionID,
-    narwhal::{BatchCertificate, BatchHeader, Subdag},
+    narwhal::{BatchCertificate, BatchHeader, BatchV2, Subdag, SubdagV2},
     puzzle::Solution,
     store::{ConsensusStore, helpers::memory::ConsensusMemory},
 };
@@ -477,6 +477,120 @@ impl<N: Network> TestChainBuilder<N> {
         self.previous_leader_certificate = Some(leader_certificate.clone());
 
         trace!("Updated internal ledger to height {}", block.height());
+        Ok(block)
+    }
+
+    /// Create a single Mysticeti-style QuorumV2 block at the next available round.
+    ///
+    /// Builds a minimal valid 3-round SubdagV2: one leader batch at the leader round,
+    /// `f+1` support batches at r+1, and `2f+1` commit batches at r+2, all using
+    /// the real committee ID so that block verification passes.
+    pub fn generate_quorum_v2_block(&mut self, rng: &mut TestRng) -> Result<Block<N>> {
+        let num_validators = self.private_keys.len();
+        // f is the number of faulty nodes; for Byzantine fault tolerance: n >= 3f+1.
+        let f = (num_validators - 1) / 3;
+        let availability_threshold = f + 1; // f+1 batches needed in the support round.
+        let quorum_threshold = 2 * f + 1; // 2f+1 batches needed in the commit round.
+
+        // Advance the leader round until one of our validators is the elected leader.
+        // This mirrors what Narwhal's generate_block_with_opts does: it keeps incrementing
+        // rounds until it finds an anchor round where a validator it controls is the leader.
+        // The genesis committee contains one key not in self.private_keys (the genesis beacon
+        // key used to bootstrap), so some rounds may elect that key as leader.
+        let (leader_round, committee, committee_id, leader_key) = {
+            let mut round = self.last_block_round + 1;
+            loop {
+                let committee = self
+                    .ledger
+                    .get_committee_lookback_for_round(round)
+                    .with_context(|| format!("Failed to get committee for round {round}"))?
+                    .ok_or_else(|| anyhow::anyhow!("No committee for round {round}"))?;
+                let leader_address = committee.get_leader(round).with_context(|| "Failed to get leader")?;
+                if let Some(key) =
+                    self.private_keys.iter().find(|key| Address::try_from(*key).unwrap() == leader_address)
+                {
+                    let committee_id = committee.id();
+                    break (round, committee, committee_id, *key);
+                }
+                round += 1;
+            }
+        };
+        let _ = committee; // committee_id already extracted above
+
+        // Build the leader batch (round r). At the leader round the previous_batch_ids
+        // are left empty only if leader_round <= 1; otherwise we use random IDs to
+        // satisfy the "must have previous batches" invariant, since we have no prior
+        // SubdagV2 batches to reference.
+        let leader_previous_ids: IndexSet<_> = if leader_round <= 1 {
+            IndexSet::new()
+        } else {
+            // Use placeholder IDs — they will be accepted because SubdagV2 validation
+            // only checks internal DAG edges (from commit round back to leader), and
+            // block verification does not chase cross-subdag edges for QuorumV2.
+            use console::types::Field;
+            (0..availability_threshold).map(|_| Field::<N>::rand(rng)).collect()
+        };
+        let timestamp = OffsetDateTime::now_utc().unix_timestamp();
+        let leader_batch =
+            BatchV2::new(&leader_key, leader_round, timestamp, committee_id, IndexSet::new(), leader_previous_ids, rng)
+                .with_context(|| "Failed to create leader batch")?;
+        let leader_batch_id = leader_batch.batch_id();
+
+        // Build support batches (round r+1), each referencing the leader batch.
+        let support_round = leader_round + 1;
+        let mut subdag = BTreeMap::<u64, IndexSet<_>>::new();
+        subdag.insert(leader_round, [leader_batch].into_iter().collect());
+
+        let mut support_ids = IndexSet::new();
+        for i in 0..availability_threshold {
+            let key = &self.private_keys[i % num_validators];
+            let batch = BatchV2::new(
+                key,
+                support_round,
+                timestamp,
+                committee_id,
+                IndexSet::new(),
+                [leader_batch_id].into_iter().collect(),
+                rng,
+            )
+            .with_context(|| "Failed to create support batch")?;
+            support_ids.insert(batch.batch_id());
+            subdag.entry(support_round).or_default().insert(batch);
+        }
+
+        // Build commit batches (round r+2), each referencing one support batch (round-robin).
+        let commit_round = leader_round + 2;
+        let support_ids_vec: Vec<_> = support_ids.into_iter().collect();
+        for i in 0..quorum_threshold {
+            let key = &self.private_keys[(availability_threshold + i) % num_validators];
+            let support_id = support_ids_vec[i % support_ids_vec.len()];
+            let batch = BatchV2::new(
+                key,
+                commit_round,
+                timestamp,
+                committee_id,
+                IndexSet::new(),
+                [support_id].into_iter().collect(),
+                rng,
+            )
+            .with_context(|| "Failed to create commit batch")?;
+            subdag.entry(commit_round).or_default().insert(batch);
+        }
+
+        // Construct the SubdagV2.
+        let subdag_v2 = SubdagV2::from(subdag).with_context(|| "Failed to construct SubdagV2")?;
+
+        // Produce the block via the ledger.
+        let block = self
+            .ledger
+            .prepare_advance_to_next_quorum_v2_block(subdag_v2, IndexMap::default(), rng)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+
+        // Advance the ledger state.
+        self.ledger.advance_to_next_block(&block).with_context(|| "Failed to advance ledger to QuorumV2 block")?;
+        self.last_block_round = commit_round;
+
+        trace!("Generated QuorumV2 block {} at height {}", block.hash(), block.height());
         Ok(block)
     }
 

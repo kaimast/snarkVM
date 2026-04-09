@@ -4097,3 +4097,95 @@ fn test_find_records_filters_by_ownership() {
     // This validates that ownership filtering is enforced before decrypting or filtering records.
     assert!(unrelated_records.is_empty(), "Expected no records for unrelated view key");
 }
+
+// ===========================================================================================
+// QuorumV2 (Mysticeti-style) block tests
+// ===========================================================================================
+
+/// Builds a chain with a single QuorumV2 block and checks that it verifies and advances the ledger.
+#[test]
+fn test_quorum_v2_block_basic() {
+    let rng = &mut TestRng::default();
+    let mut builder = TestChainBuilder::<CurrentNetwork>::new(rng).unwrap();
+
+    let block = builder.generate_quorum_v2_block(rng).unwrap();
+
+    // The block authority must be QuorumV2.
+    assert!(block.authority().is_quorum_v2(), "Expected QuorumV2 authority");
+
+    // The block was already advanced inside generate_quorum_v2_block, so the builder's
+    // internal ledger is at height 1.
+    assert_eq!(block.height(), 1);
+    // commit_round = leader_round + 2, so block.round() >= 3
+    assert!(block.round() >= 3);
+}
+
+/// Builds several consecutive QuorumV2 blocks, verifying each round advances monotonically.
+#[test]
+fn test_quorum_v2_multiple_blocks() {
+    let rng = &mut TestRng::default();
+    let mut builder = TestChainBuilder::<CurrentNetwork>::new(rng).unwrap();
+
+    let mut previous_round = 0u64;
+    for i in 1..=5u32 {
+        let block = builder.generate_quorum_v2_block(rng).unwrap();
+
+        assert!(block.authority().is_quorum_v2(), "Block {i} must be QuorumV2");
+        assert_eq!(block.height(), i, "Unexpected height for block {i}");
+        assert!(block.round() > previous_round, "Round must increase monotonically at block {i}");
+        previous_round = block.round();
+    }
+}
+
+/// Builds a QuorumV2 block after a Narwhal Quorum block, verifying the two types can coexist.
+#[test]
+fn test_quorum_then_quorum_v2_block() {
+    let rng = &mut TestRng::default();
+    let mut builder = TestChainBuilder::<CurrentNetwork>::new(rng).unwrap();
+
+    // Produce a standard Narwhal quorum block first.
+    let quorum_block = builder.generate_block(rng).unwrap();
+    assert!(quorum_block.authority().is_quorum(), "First block must be Narwhal Quorum");
+
+    // Then produce a Mysticeti QuorumV2 block.
+    let quorum_v2_block = builder.generate_quorum_v2_block(rng).unwrap();
+    assert!(quorum_v2_block.authority().is_quorum_v2(), "Second block must be QuorumV2");
+    assert!(quorum_v2_block.round() > quorum_block.round(), "QuorumV2 round must exceed previous Quorum round");
+    assert_eq!(quorum_v2_block.height(), quorum_block.height() + 1);
+}
+
+/// Checks that the subdag root stored in the QuorumV2 block header matches recomputation.
+#[test]
+fn test_quorum_v2_subdag_root() {
+    let rng = &mut TestRng::default();
+    let mut builder = TestChainBuilder::<CurrentNetwork>::new(rng).unwrap();
+
+    let block = builder.generate_quorum_v2_block(rng).unwrap();
+
+    // Recompute the subdag root from the subdag and compare against the block header.
+    let Authority::QuorumV2(subdag) = block.authority() else {
+        panic!("Expected QuorumV2 authority");
+    };
+    let expected_root = subdag.to_subdag_root().unwrap();
+    assert_eq!(block.header().subdag_root(), expected_root);
+}
+
+/// Checks that `check_next_block` passes for a freshly produced QuorumV2 block on a separate ledger.
+///
+/// This test produces a QuorumV2 block via `prepare_advance_to_next_quorum_v2_block` and then
+/// verifies it passes `check_next_block` on an independent ledger that has not yet advanced.
+#[test]
+fn test_quorum_v2_check_next_block() {
+    let rng = &mut TestRng::default();
+
+    // Two independent instances sharing the same genesis block.
+    let mut builder = TestChainBuilder::<CurrentNetwork>::new(rng).unwrap();
+    let ledger = builder.instantiate_ledger();
+
+    // Produce the block via the builder (uses builder's internal ledger).
+    let block = builder.generate_quorum_v2_block(rng).unwrap();
+    assert!(block.authority().is_quorum_v2());
+
+    // check_next_block must succeed on the pristine second ledger.
+    ledger.check_next_block(&block, rng).unwrap();
+}

@@ -62,7 +62,7 @@ use console::{
 };
 use snarkvm_ledger_authority::Authority;
 use snarkvm_ledger_committee::Committee;
-use snarkvm_ledger_narwhal::{BatchCertificate, Subdag, Transmission, TransmissionID};
+use snarkvm_ledger_narwhal::{BatchCertificate, Subdag, SubdagV2, Transmission, TransmissionID};
 use snarkvm_ledger_puzzle::{Puzzle, PuzzleSolutions, Solution, SolutionID};
 use snarkvm_ledger_query::QueryTrait;
 use snarkvm_ledger_store::{ConsensusStorage, ConsensusStore};

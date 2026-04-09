@@ -68,8 +68,10 @@ members = [
   "ledger/narwhal",
   "ledger/narwhal/batch-certificate",
   "ledger/narwhal/batch-header",
+  "ledger/narwhal/batch-v2",
   "ledger/narwhal/data",
   "ledger/narwhal/subdag",
+  "ledger/narwhal/subdag-v2",
   "ledger/narwhal/transmission",
   "ledger/narwhal/transmission-id",
   "ledger/puzzle",
@@ -361,8 +363,16 @@ version = "=4.6.0"
 path = "ledger/narwhal/batch-certificate"
 version = "=4.6.0"
 
+[workspace.dependencies.snarkvm-ledger-narwhal-batch-v2]
+path = "ledger/narwhal/batch-v2"
+version = "=4.6.0"
+
 [workspace.dependencies.snarkvm-ledger-narwhal-subdag]
 path = "ledger/narwhal/subdag"
+version = "=4.6.0"
+
+[workspace.dependencies.snarkvm-ledger-narwhal-subdag-v2]
+path = "ledger/narwhal/subdag-v2"
 version = "=4.6.0"
 
 [workspace.dependencies.snarkvm-ledger-narwhal-transmission]

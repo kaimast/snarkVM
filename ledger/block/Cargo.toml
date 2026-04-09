@@ -55,6 +55,9 @@ workspace = true
 [dependencies.snarkvm-ledger-narwhal-subdag]
 workspace = true
 
+[dependencies.snarkvm-ledger-narwhal-subdag-v2]
+workspace = true
+
 [dependencies.snarkvm-ledger-narwhal-transmission-id]
 workspace = true
 

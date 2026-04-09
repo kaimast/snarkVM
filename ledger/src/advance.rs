@@ -59,6 +59,75 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
         .map_err(|e| CheckBlockError::Other(e))
     }
 
+    /// Returns a candidate for the next Mysticeti-style quorum block in the ledger, using a committed
+    /// SubdagV2 and its transmissions.
+    /// This candidate can then be passed to [`Ledger::advance_to_next_block`] to be added to the ledger.
+    ///
+    /// The function will prevent concurrent updates to the ledger, and may block if an update is currently in progress.
+    ///
+    /// # Panics
+    /// This function panics if called from an async context.
+    pub fn prepare_advance_to_next_quorum_v2_block<R: Rng + CryptoRng>(
+        &self,
+        subdag: SubdagV2<N>,
+        transmissions: IndexMap<TransmissionID<N>, Transmission<N>>,
+        rng: &mut R,
+    ) -> Result<Block<N>, CheckBlockError<N>> {
+        // Retrieve the latest block as the previous block (for the next block).
+        // Hold this lock while preparing the template, so that the latest block does not change mid-speculation.
+        let previous_block = self.current_block.read();
+
+        // Decouple the transmissions into ratifications, solutions, and transactions.
+        let (ratifications, solutions, transactions) = decouple_transmissions(transmissions.into_iter())?;
+        // Currently, we do not support ratifications from the memory pool.
+        if !ratifications.is_empty() {
+            return Err(anyhow!("Ratifications are currently unsupported from the memory pool").into());
+        }
+
+        // Compute the next round from the commit round of the subdag.
+        let next_round = subdag.commit_round();
+        // Ensure the commit round is after the previous block round.
+        if previous_block.round() >= next_round {
+            return Err(CheckBlockError::InvalidRound { new: next_round, previous: previous_block.round() });
+        }
+
+        // Retrieve the committee lookback for the support round (commit_round - 1) to compute the timestamp.
+        let penultimate_round = next_round.saturating_sub(1);
+        let previous_committee_lookback = self
+            .get_committee_lookback_for_round(penultimate_round)?
+            .ok_or_else(|| anyhow!("Failed to fetch committee lookback for round {penultimate_round}"))?;
+        // Compute the block timestamp as the weighted median of the support round.
+        let next_timestamp = subdag.timestamp(&previous_committee_lookback);
+        // Compute the subdag root.
+        let subdag_root = subdag.to_subdag_root()?;
+
+        // Construct the block template.
+        let (header, ratifications, solutions, aborted_solution_ids, transactions, aborted_transaction_ids) = self
+            .construct_block_template_inner(
+                &previous_block,
+                next_round,
+                next_timestamp,
+                subdag_root,
+                ratifications,
+                solutions,
+                transactions,
+                rng,
+            )?;
+
+        // Construct the new quorum v2 block.
+        Block::new_quorum_v2(
+            previous_block.hash(),
+            header,
+            subdag,
+            ratifications,
+            solutions,
+            aborted_solution_ids,
+            transactions,
+            aborted_transaction_ids,
+        )
+        .map_err(CheckBlockError::Other)
+    }
+
     /// Returns a candidate for the next block in the ledger.
     /// This candidate can then be passed to [`Ledger::advance_to_next_block`] to be added to the ledger.
     ///
@@ -269,6 +338,71 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
         (Header<N>, Ratifications<N>, Solutions<N>, Vec<SolutionID<N>>, Transactions<N>, Vec<N::TransactionID>),
         CheckBlockError<N>,
     > {
+        // Compute the next round number.
+        let next_round = match subdag {
+            Some(subdag) => {
+                if previous_block.round() >= subdag.anchor_round() {
+                    return Err(CheckBlockError::InvalidRound {
+                        new: subdag.anchor_round(),
+                        previous: previous_block.round(),
+                    });
+                }
+                subdag.anchor_round()
+            }
+            None => previous_block.round().saturating_add(1),
+        };
+        // Determine the timestamp for the next block.
+        let next_timestamp = match subdag {
+            Some(subdag) => {
+                // Retrieve the previous committee lookback.
+                let previous_committee_lookback = {
+                    // Calculate the penultimate round, which is the round before the anchor round.
+                    let penultimate_round = subdag.anchor_round().saturating_sub(1);
+                    // Output the committee lookback for the penultimate round.
+                    self.get_committee_lookback_for_round(penultimate_round)?
+                        .ok_or(anyhow!("Failed to fetch committee lookback for round {penultimate_round}"))?
+                };
+                // Return the timestamp for the given committee lookback.
+                subdag.timestamp(&previous_committee_lookback)
+            }
+            None => OffsetDateTime::now_utc().unix_timestamp(),
+        };
+        // Construct the subdag root.
+        let subdag_root = match subdag {
+            Some(subdag) => subdag.to_subdag_root()?,
+            None => Field::zero(),
+        };
+        // Construct the block template with precomputed values.
+        self.construct_block_template_inner(
+            previous_block,
+            next_round,
+            next_timestamp,
+            subdag_root,
+            candidate_ratifications,
+            candidate_solutions,
+            candidate_transactions,
+            rng,
+        )
+    }
+
+    /// Inner implementation of `construct_block_template`, accepting the precomputed round, timestamp,
+    /// and subdag root directly. This allows callers with different subdag types to share the rest of
+    /// the block-template construction logic.
+    #[allow(clippy::type_complexity, clippy::too_many_arguments)]
+    fn construct_block_template_inner<R: Rng + CryptoRng>(
+        &self,
+        previous_block: &Block<N>,
+        next_round: u64,
+        next_timestamp: i64,
+        subdag_root: Field<N>,
+        candidate_ratifications: Vec<Ratify<N>>,
+        candidate_solutions: Vec<Solution<N>>,
+        candidate_transactions: Vec<Transaction<N>>,
+        rng: &mut R,
+    ) -> Result<
+        (Header<N>, Ratifications<N>, Solutions<N>, Vec<SolutionID<N>>, Transactions<N>, Vec<N::TransactionID>),
+        CheckBlockError<N>,
+    > {
         // Construct the solutions.
         let (solutions, aborted_solutions, solutions_root, combined_proof_target) = match candidate_solutions.is_empty()
         {
@@ -343,38 +477,8 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
         // Retrieve the last coinbase timestamp.
         let last_coinbase_timestamp = previous_block.last_coinbase_timestamp();
 
-        // Compute the next round number.
-        let next_round = match subdag {
-            Some(subdag) => {
-                if previous_block.round() >= subdag.anchor_round() {
-                    return Err(CheckBlockError::InvalidRound {
-                        new: subdag.anchor_round(),
-                        previous: previous_block.round(),
-                    });
-                }
-
-                subdag.anchor_round()
-            }
-            None => previous_block.round().saturating_add(1),
-        };
         // Compute the next height.
         let next_height = previous_block.height().saturating_add(1);
-        // Determine the timestamp for the next block.
-        let next_timestamp = match subdag {
-            Some(subdag) => {
-                // Retrieve the previous committee lookback.
-                let previous_committee_lookback = {
-                    // Calculate the penultimate round, which is the round before the anchor round.
-                    let penultimate_round = subdag.anchor_round().saturating_sub(1);
-                    // Output the committee lookback for the penultimate round.
-                    self.get_committee_lookback_for_round(penultimate_round)?
-                        .ok_or(anyhow!("Failed to fetch committee lookback for round {penultimate_round}"))?
-                };
-                // Return the timestamp for the given committee lookback.
-                subdag.timestamp(&previous_committee_lookback)
-            }
-            None => OffsetDateTime::now_utc().unix_timestamp(),
-        };
 
         // Calculate the next coinbase targets and timestamps.
         let (
@@ -434,12 +538,6 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
 
         // Compute the ratifications root.
         let ratifications_root = ratifications.to_ratifications_root()?;
-
-        // Construct the subdag root.
-        let subdag_root = match subdag {
-            Some(subdag) => subdag.to_subdag_root()?,
-            None => Field::zero(),
-        };
 
         // Construct the metadata.
         let metadata = Metadata::new(

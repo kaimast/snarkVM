@@ -15,58 +15,57 @@
 
 use super::*;
 
-impl<N: Network> Serialize for Authority<N> {
-    /// Serializes the authority into string or bytes.
+impl<N: Network> Serialize for BatchV2<N> {
     #[inline]
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match serializer.is_human_readable() {
             true => {
-                let mut authority = serializer.serialize_struct("Authority", 2)?;
-                match self {
-                    Self::Beacon(signature) => {
-                        authority.serialize_field("type", "beacon")?;
-                        authority.serialize_field("signature", signature)?;
-                    }
-                    Self::Quorum(subdag) => {
-                        authority.serialize_field("type", "quorum")?;
-                        authority.serialize_field("subdag", subdag)?;
-                    }
-                    Self::QuorumV2(subdag) => {
-                        authority.serialize_field("type", "quorum_v2")?;
-                        authority.serialize_field("subdag", subdag)?;
-                    }
-                }
-                authority.end()
+                let mut batch = serializer.serialize_struct("BatchV2", 8)?;
+                batch.serialize_field("batch_id", &self.batch_id)?;
+                batch.serialize_field("author", &self.author)?;
+                batch.serialize_field("round", &self.round)?;
+                batch.serialize_field("timestamp", &self.timestamp)?;
+                batch.serialize_field("committee_id", &self.committee_id)?;
+                batch.serialize_field("transmission_ids", &self.transmission_ids)?;
+                batch.serialize_field("previous_batch_ids", &self.previous_batch_ids)?;
+                batch.serialize_field("signature", &self.signature)?;
+                batch.end()
             }
             false => ToBytesSerializer::serialize_with_size_encoding(self, serializer),
         }
     }
 }
 
-impl<'de, N: Network> Deserialize<'de> for Authority<N> {
-    /// Deserializes the authority from a string or bytes.
+impl<'de, N: Network> Deserialize<'de> for BatchV2<N> {
     #[inline]
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         match deserializer.is_human_readable() {
             true => {
-                let mut authority = serde_json::Value::deserialize(deserializer)?;
-                let type_: String = DeserializeExt::take_from_value::<D>(&mut authority, "type")?;
+                let mut batch = serde_json::Value::deserialize(deserializer)?;
+                let batch_id: Field<N> = DeserializeExt::take_from_value::<D>(&mut batch, "batch_id")?;
 
-                // Recover the authority.
-                match type_.as_str() {
-                    "beacon" => Ok(Self::from_beacon(
-                        DeserializeExt::take_from_value::<D>(&mut authority, "signature").map_err(de::Error::custom)?,
-                    )),
-                    "quorum" => Ok(Self::from_quorum(
-                        DeserializeExt::take_from_value::<D>(&mut authority, "subdag").map_err(de::Error::custom)?,
-                    )),
-                    "quorum_v2" => Ok(Self::from_quorum_v2(
-                        DeserializeExt::take_from_value::<D>(&mut authority, "subdag").map_err(de::Error::custom)?,
-                    )),
-                    _ => Err(de::Error::custom(error("Invalid authority type"))),
+                // Recover the batch.
+                let batch_v2 = Self::from(
+                    DeserializeExt::take_from_value::<D>(&mut batch, "author")?,
+                    DeserializeExt::take_from_value::<D>(&mut batch, "round")?,
+                    DeserializeExt::take_from_value::<D>(&mut batch, "timestamp")?,
+                    DeserializeExt::take_from_value::<D>(&mut batch, "committee_id")?,
+                    DeserializeExt::take_from_value::<D>(&mut batch, "transmission_ids")?,
+                    DeserializeExt::take_from_value::<D>(&mut batch, "previous_batch_ids")?,
+                    DeserializeExt::take_from_value::<D>(&mut batch, "signature")?,
+                )
+                .map_err(de::Error::custom)?;
+
+                // Ensure that the batch ID matches the recovered batch.
+                match batch_id == batch_v2.batch_id() {
+                    true => Ok(batch_v2),
+                    false => Err(de::Error::custom(error(format!(
+                        "Batch ID mismatch: expected {batch_id}, got {}",
+                        batch_v2.batch_id()
+                    )))),
                 }
             }
-            false => FromBytesUncheckedDeserializer::<Self>::deserialize_with_size_encoding(deserializer, "authority"),
+            false => FromBytesUncheckedDeserializer::<Self>::deserialize_with_size_encoding(deserializer, "batch v2"),
         }
     }
 }
@@ -74,7 +73,6 @@ impl<'de, N: Network> Deserialize<'de> for Authority<N> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use console::prelude::TestRng;
 
     fn check_serde_json<
         T: Serialize + for<'a> Deserialize<'a> + Debug + Display + PartialEq + Eq + FromStr + ToBytes + FromBytes,
@@ -108,7 +106,7 @@ mod tests {
     fn test_serde_json() {
         let rng = &mut TestRng::default();
 
-        for expected in crate::test_helpers::sample_authorities(rng) {
+        for expected in crate::test_helpers::sample_batch_v2s(rng) {
             check_serde_json(expected);
         }
     }
@@ -117,7 +115,7 @@ mod tests {
     fn test_bincode() {
         let rng = &mut TestRng::default();
 
-        for expected in crate::test_helpers::sample_authorities(rng) {
+        for expected in crate::test_helpers::sample_batch_v2s(rng) {
             check_bincode(expected);
         }
     }

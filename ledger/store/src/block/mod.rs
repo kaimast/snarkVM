@@ -387,6 +387,9 @@ pub trait BlockStorage<N: Network>: 'static + Clone + Send + Sync {
             Authority::Quorum(subdag) => {
                 subdag.iter().flat_map(|(round, certificates)| certificates.iter().map(|c| (c.id(), *round))).collect()
             }
+            Authority::QuorumV2(subdag) => {
+                subdag.iter().flat_map(|(round, batches)| batches.iter().map(|b| (b.batch_id(), *round))).collect()
+            }
         };
 
         // Prepare the rejected transaction IDs and their corresponding unconfirmed transaction IDs.
@@ -511,6 +514,9 @@ pub trait BlockStorage<N: Network>: 'static + Clone + Send + Sync {
                 Cow::Owned(Authority::Beacon(_)) | Cow::Borrowed(Authority::Beacon(_)) => Vec::new(),
                 Cow::Owned(Authority::Quorum(subdag)) | Cow::Borrowed(Authority::Quorum(subdag)) => {
                     subdag.values().flatten().map(|c| c.id()).collect()
+                }
+                Cow::Owned(Authority::QuorumV2(subdag)) | Cow::Borrowed(Authority::QuorumV2(subdag)) => {
+                    subdag.values().flatten().map(|b| b.batch_id()).collect()
                 }
             },
             None => bail!("Failed to remove block: missing authority for block '{block_height}' ('{block_hash}')"),

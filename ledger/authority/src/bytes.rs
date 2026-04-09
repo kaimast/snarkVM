@@ -24,7 +24,8 @@ impl<N: Network> FromBytes for Authority<N> {
         match variant {
             0 => Ok(Self::Beacon(FromBytes::read_le(&mut reader)?)),
             1 => Ok(Self::Quorum(FromBytes::read_le(&mut reader)?)),
-            2.. => Err(error("Invalid authority variant")),
+            2 => Ok(Self::QuorumV2(FromBytes::read_le(&mut reader)?)),
+            3.. => Err(error("Invalid authority variant")),
         }
     }
 
@@ -36,7 +37,8 @@ impl<N: Network> FromBytes for Authority<N> {
         match variant {
             0 => Ok(Self::Beacon(FromBytes::read_le_unchecked(&mut reader)?)),
             1 => Ok(Self::Quorum(FromBytes::read_le_unchecked(&mut reader)?)),
-            2.. => Err(error("Invalid authority variant")),
+            2 => Ok(Self::QuorumV2(FromBytes::read_le_unchecked(&mut reader)?)),
+            3.. => Err(error("Invalid authority variant")),
         }
     }
 }
@@ -44,7 +46,6 @@ impl<N: Network> FromBytes for Authority<N> {
 impl<N: Network> ToBytes for Authority<N> {
     /// Writes the authority to the buffer.
     fn write_le<W: Write>(&self, mut writer: W) -> IoResult<()> {
-        // Write the authority.
         match self {
             Self::Beacon(signature) => {
                 // Write the variant.
@@ -55,6 +56,12 @@ impl<N: Network> ToBytes for Authority<N> {
             Self::Quorum(subdag) => {
                 // Write the variant.
                 1u8.write_le(&mut writer)?;
+                // Write the subdag.
+                subdag.write_le(&mut writer)
+            }
+            Self::QuorumV2(subdag) => {
+                // Write the variant.
+                2u8.write_le(&mut writer)?;
                 // Write the subdag.
                 subdag.write_le(&mut writer)
             }

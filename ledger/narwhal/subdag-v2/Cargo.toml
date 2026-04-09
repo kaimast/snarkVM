@@ -1,8 +1,8 @@
 [package]
-name = "snarkvm-ledger-authority"
+name = "snarkvm-ledger-narwhal-subdag-v2"
 version = "4.6.0"
 authors = [ "The Aleo Team <hello@aleo.org>" ]
-description = "Data structures for a block authority in a decentralized virtual machine"
+description = "A subdag for a Mysticeti-style DAG in a decentralized virtual machine"
 homepage = "https://aleo.org"
 repository = "https://github.com/ProvableHQ/snarkVM"
 keywords = [
@@ -24,25 +24,30 @@ license = "Apache-2.0"
 edition = "2024"
 
 [features]
-default = [ ]
+default = [ "indexmap/rayon", "rayon" ]
 serial = [ "snarkvm-console/serial" ]
 wasm = [ "snarkvm-console/wasm" ]
-test-helpers = [ "snarkvm-ledger-narwhal-subdag/test-helpers", "snarkvm-ledger-narwhal-subdag-v2/test-helpers" ]
+test-helpers = [ "snarkvm-ledger-narwhal-batch-v2/test-helpers" ]
 
 [dependencies.snarkvm-console]
 workspace = true
 
-[dependencies.snarkvm-ledger-narwhal-subdag]
+[dependencies.snarkvm-ledger-narwhal-batch-v2]
 workspace = true
 
-[dependencies.snarkvm-ledger-narwhal-subdag-v2]
+[dependencies.snarkvm-ledger-committee]
 workspace = true
 
-[dependencies.anyhow]
+[dependencies.snarkvm-ledger-narwhal-transmission-id]
 workspace = true
 
-[dependencies.rand]
+[dependencies.indexmap]
 workspace = true
+features = [ "serde" ]
+
+[dependencies.rayon]
+workspace = true
+optional = true
 
 [dependencies.serde_json]
 workspace = true
@@ -51,6 +56,6 @@ features = [ "preserve_order" ]
 [dev-dependencies.bincode]
 workspace = true
 
-[dev-dependencies.snarkvm-ledger-authority]
+[dev-dependencies.snarkvm-ledger-narwhal-subdag-v2]
 path = "."
 features = [ "test-helpers" ]

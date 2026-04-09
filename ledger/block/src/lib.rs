@@ -60,6 +60,7 @@ use snarkvm_ledger_authority::Authority;
 use snarkvm_ledger_committee::Committee;
 use snarkvm_ledger_narwhal_data::Data;
 use snarkvm_ledger_narwhal_subdag::Subdag;
+use snarkvm_ledger_narwhal_subdag_v2::SubdagV2;
 use snarkvm_ledger_narwhal_transmission_id::TransmissionID;
 use snarkvm_ledger_puzzle::{PuzzleSolutions, Solution, SolutionID};
 
@@ -143,6 +144,33 @@ impl<N: Network> Block<N> {
         )
     }
 
+    /// Initializes a new Mysticeti-style quorum block from the given previous block hash, block header,
+    /// SubdagV2, ratifications, solutions, aborted solution IDs, transactions, and aborted transaction IDs.
+    pub fn new_quorum_v2(
+        previous_hash: N::BlockHash,
+        header: Header<N>,
+        subdag: SubdagV2<N>,
+        ratifications: Ratifications<N>,
+        solutions: Solutions<N>,
+        aborted_solution_ids: Vec<SolutionID<N>>,
+        transactions: Transactions<N>,
+        aborted_transaction_ids: Vec<N::TransactionID>,
+    ) -> Result<Self> {
+        // Construct the QuorumV2 authority.
+        let authority = Authority::new_quorum_v2(subdag);
+        // Construct the block.
+        Self::from(
+            previous_hash,
+            header,
+            authority,
+            ratifications,
+            solutions,
+            aborted_solution_ids,
+            transactions,
+            aborted_transaction_ids,
+        )
+    }
+
     /// Initializes a new block from the given previous block hash, block header, authority,
     /// ratifications, solutions, aborted solution IDs, transactions, and aborted transaction IDs.
     pub fn from(
@@ -207,6 +235,16 @@ impl<N: Network> Block<N> {
                     &aborted_transaction_ids,
                 )?;
             }
+            Authority::QuorumV2(subdag) => {
+                // Ensure the transmission IDs from the subdag correspond to the block.
+                Self::check_subdag_v2_transmissions(
+                    subdag,
+                    &solutions,
+                    &aborted_solution_ids,
+                    &transactions,
+                    &aborted_transaction_ids,
+                )?;
+            }
         }
 
         // Ensure that coinbase accumulator matches the solutions.
@@ -218,6 +256,7 @@ impl<N: Network> Block<N> {
         let subdag_root = match &authority {
             Authority::Beacon(_) => Field::<N>::zero(),
             Authority::Quorum(subdag) => subdag.to_subdag_root()?,
+            Authority::QuorumV2(subdag) => subdag.to_subdag_root()?,
         };
         if header.subdag_root() != subdag_root {
             bail!("The subdag root in the block does not correspond to the authority");

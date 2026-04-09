@@ -159,7 +159,7 @@ impl<N: Network> Block<N> {
     ) -> Result<(u64, u32, i64, Vec<SolutionID<N>>, Vec<N::TransactionID>)> {
         // Note: Do not remove this. This ensures that all blocks after genesis are quorum blocks.
         #[cfg(not(any(test, feature = "test")))]
-        ensure!(self.authority.is_quorum(), "The next block must be a quorum block");
+        ensure!(self.authority.is_quorum() || self.authority.is_quorum_v2(), "The next block must be a quorum block");
 
         // Determine the expected height.
         let expected_height = previous_height.saturating_add(1);
@@ -189,6 +189,19 @@ impl<N: Network> Block<N> {
                 }
                 // Output the subdag anchor round.
                 subdag.anchor_round()
+            }
+            // QuorumV2 blocks use the commit round (leader round + 2).
+            Authority::QuorumV2(subdag) => {
+                // Ensure the commit round is after the previous block round.
+                ensure!(
+                    subdag.commit_round() > previous_round,
+                    "SubdagV2 commit round is not after previous block round in block {} (found '{}', expected after '{}')",
+                    expected_height,
+                    subdag.commit_round(),
+                    previous_round
+                );
+                // Output the commit round as the block round.
+                subdag.commit_round()
             }
         };
         // Ensure the block round minus the committee lookback range is at least the starting round of the committee lookback.
@@ -240,6 +253,24 @@ impl<N: Network> Block<N> {
                     &self.aborted_transaction_ids,
                 )?
             }
+            Authority::QuorumV2(subdag) => {
+                // The leader is elected at the leader round, not the commit round.
+                let expected_leader = current_committee_lookback.get_leader(subdag.leader_round())?;
+                // Ensure the block is authored by the expected leader.
+                ensure!(
+                    subdag.leader_address() == expected_leader,
+                    "QuorumV2 block {expected_height} is authored by an unexpected leader (found: {}, expected: {expected_leader})",
+                    subdag.leader_address()
+                );
+                // Ensure the transmission IDs from the subdag correspond to the block.
+                Self::check_subdag_v2_transmissions(
+                    subdag,
+                    &self.solutions,
+                    &self.aborted_solution_ids,
+                    &self.transactions,
+                    &self.aborted_transaction_ids,
+                )?
+            }
         };
 
         // Determine the expected timestamp.
@@ -248,6 +279,8 @@ impl<N: Network> Block<N> {
             Authority::Beacon(..) => self.timestamp(),
             // Quorum blocks use the weighted median timestamp from the subdag.
             Authority::Quorum(subdag) => subdag.timestamp(previous_committee_lookback),
+            // QuorumV2 blocks use the weighted median timestamp from the support round (r+1).
+            Authority::QuorumV2(subdag) => subdag.timestamp(previous_committee_lookback),
         };
 
         // Check that the committee IDs are correct.
@@ -268,6 +301,28 @@ impl<N: Network> Block<N> {
                 ensure!(
                     certificates.iter().skip(1).all(|certificate| certificate.committee_id() == expected_committee_id),
                     "Certificates on round {round} do not all have the same committee ID",
+                );
+                Ok(())
+            })?;
+        }
+
+        // Check that the committee IDs are correct for QuorumV2.
+        if let Authority::QuorumV2(subdag) = &self.authority {
+            // Check that the committee ID of the leader batch is correct.
+            ensure!(
+                subdag.leader_batch().committee_id() == current_committee_lookback.id(),
+                "Leader batch has an incorrect committee ID"
+            );
+
+            // Check that all batches on each round have the same committee ID.
+            cfg_iter!(subdag).try_for_each(|(round, batches)| {
+                let expected_committee_id = batches
+                    .first()
+                    .map(|batch| batch.committee_id())
+                    .ok_or(anyhow!("No batches found for subdag round {round}"))?;
+                ensure!(
+                    batches.iter().skip(1).all(|batch| batch.committee_id() == expected_committee_id),
+                    "Batches on round {round} do not all have the same committee ID",
                 );
                 Ok(())
             })?;
@@ -556,8 +611,27 @@ impl<N: Network> Block<N> {
     fn compute_subdag_root(&self) -> Result<Field<N>> {
         match self.authority {
             Authority::Quorum(ref subdag) => subdag.to_subdag_root(),
+            Authority::QuorumV2(ref subdag) => subdag.to_subdag_root(),
             Authority::Beacon(_) => Ok(Field::zero()),
         }
+    }
+
+    /// Checks that the transmission IDs in the given subdag v2 match the solutions and transactions in the block.
+    /// Returns the IDs of the transactions and solutions that should already exist in the ledger.
+    pub(super) fn check_subdag_v2_transmissions(
+        subdag: &SubdagV2<N>,
+        solutions: &Option<PuzzleSolutions<N>>,
+        aborted_solution_ids: &[SolutionID<N>],
+        transactions: &Transactions<N>,
+        aborted_transaction_ids: &[N::TransactionID],
+    ) -> Result<(Vec<SolutionID<N>>, Vec<N::TransactionID>)> {
+        Self::check_transmission_ids(
+            subdag.transmission_ids(),
+            solutions,
+            aborted_solution_ids,
+            transactions,
+            aborted_transaction_ids,
+        )
     }
 
     /// Checks that the transmission IDs in the given subdag matches the solutions and transactions in the block.
@@ -569,6 +643,27 @@ impl<N: Network> Block<N> {
         transactions: &Transactions<N>,
         aborted_transaction_ids: &[N::TransactionID],
     ) -> Result<(Vec<SolutionID<N>>, Vec<N::TransactionID>)> {
+        Self::check_transmission_ids(
+            subdag.transmission_ids(),
+            solutions,
+            aborted_solution_ids,
+            transactions,
+            aborted_transaction_ids,
+        )
+    }
+
+    /// Core logic for checking that a set of transmission IDs matches the solutions and transactions in the block.
+    /// Returns the IDs of the transactions and solutions that should already exist in the ledger.
+    fn check_transmission_ids<'a>(
+        transmission_ids: impl Iterator<Item = &'a TransmissionID<N>>,
+        solutions: &Option<PuzzleSolutions<N>>,
+        aborted_solution_ids: &[SolutionID<N>],
+        transactions: &Transactions<N>,
+        aborted_transaction_ids: &[N::TransactionID],
+    ) -> Result<(Vec<SolutionID<N>>, Vec<N::TransactionID>)>
+    where
+        N: 'a,
+    {
         // Prepare an iterator over the solution IDs.
         let mut solutions = solutions.as_ref().map(|s| s.deref()).into_iter().flatten().peekable();
         // Prepare an iterator over the unconfirmed transactions.
@@ -587,7 +682,7 @@ impl<N: Network> Block<N> {
         let mut aborted_or_existing_transaction_ids = HashSet::new();
 
         // Iterate over the transmission IDs.
-        for transmission_id in subdag.transmission_ids() {
+        for transmission_id in transmission_ids {
             // If the transaction or solution ID has already been seen, then continue.
             // Note: This is done instead of checking `TransmissionID` directly, because we need to
             // ensure that each transaction or solution ID is unique. The `TransmissionID` is guaranteed

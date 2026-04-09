@@ -52,6 +52,7 @@ use console::{
     types::Field,
 };
 use snarkvm_ledger_narwhal_subdag::Subdag;
+use snarkvm_ledger_narwhal_subdag_v2::SubdagV2;
 
 use anyhow::Result;
 use rand::{CryptoRng, Rng};
@@ -60,6 +61,7 @@ use rand::{CryptoRng, Rng};
 pub enum Authority<N: Network> {
     Beacon(Signature<N>),
     Quorum(Subdag<N>),
+    QuorumV2(SubdagV2<N>),
 }
 
 impl<N: Network> Authority<N> {
@@ -79,6 +81,11 @@ impl<N: Network> Authority<N> {
     pub fn new_quorum(subdag: Subdag<N>) -> Self {
         Self::Quorum(subdag)
     }
+
+    /// Initializes a new quorum v2 authority.
+    pub fn new_quorum_v2(subdag: SubdagV2<N>) -> Self {
+        Self::QuorumV2(subdag)
+    }
 }
 
 impl<N: Network> Authority<N> {
@@ -90,6 +97,11 @@ impl<N: Network> Authority<N> {
     /// Initializes a new quorum authority.
     pub const fn from_quorum(subdag: Subdag<N>) -> Self {
         Self::Quorum(subdag)
+    }
+
+    /// Initializes a new quorum v2 authority.
+    pub const fn from_quorum_v2(subdag: SubdagV2<N>) -> Self {
+        Self::QuorumV2(subdag)
     }
 }
 
@@ -103,16 +115,22 @@ impl<N: Network> Authority<N> {
     pub const fn is_quorum(&self) -> bool {
         matches!(self, Self::Quorum(_))
     }
+
+    /// Returns `true` if the authority is a quorum v2.
+    pub const fn is_quorum_v2(&self) -> bool {
+        matches!(self, Self::QuorumV2(_))
+    }
 }
 
 impl<N: Network> Authority<N> {
     /// Returns address of the authority.
-    /// If the authority is a beacon, the address of the signer is returned.
-    /// If the authority is a quorum, the address of the leader is returned.
+    /// For beacon: address of the signer.
+    /// For quorum/quorum_v2: address of the leader.
     pub fn to_address(&self) -> Address<N> {
         match self {
             Self::Beacon(signature) => signature.to_address(),
             Self::Quorum(subdag) => subdag.leader_address(),
+            Self::QuorumV2(subdag) => subdag.leader_address(),
         }
     }
 }
@@ -131,12 +149,16 @@ pub mod test_helpers {
 
     /// Returns a sample quorum authority.
     pub fn sample_quorum_authority(rng: &mut TestRng) -> Authority<CurrentNetwork> {
-        // Return the quorum authority.
         Authority::new_quorum(snarkvm_ledger_narwhal_subdag::test_helpers::sample_subdag(rng))
+    }
+
+    /// Returns a sample quorum v2 authority.
+    pub fn sample_quorum_v2_authority(rng: &mut TestRng) -> Authority<CurrentNetwork> {
+        Authority::new_quorum_v2(snarkvm_ledger_narwhal_subdag_v2::test_helpers::sample_subdag_v2(rng))
     }
 
     /// Returns a list of sample authorities.
     pub fn sample_authorities(rng: &mut TestRng) -> Vec<Authority<CurrentNetwork>> {
-        vec![sample_beacon_authority(rng), sample_quorum_authority(rng)]
+        vec![sample_beacon_authority(rng), sample_quorum_authority(rng), sample_quorum_v2_authority(rng)]
     }
 }
